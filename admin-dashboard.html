@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Dashboard - MedAccess</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+<script>
+const token = localStorage.getItem("token");
+const role  = (localStorage.getItem("role") || "").toUpperCase();
+
+// ✅ STRICT AUTH CHECK (FIXED)
+if (!token || role !== "ADMIN") {
+    localStorage.clear();
+    window.location.href = "login.html";
+}
+
+const API = "http://localhost:8080/admin";
+</script>
+
+<div class="dashboard">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+<div class="logo">
+<img src="media/admin.png">
+<h2>MedAccess</h2>
+</div>
+<ul>
+<li onclick="showSection('requests')">New Requests</li>
+<li onclick="showSection('activeUsersTable')">Active Users</li>
+<li onclick="showSection('deletedUsers')">Deleted Users</li>
+<li onclick="logout()">Logout</li>
+</ul>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- BANNER -->
+<div class="banner">
+<img src="media/admin2.jpg">
+<div class="banner-text">
+<h1>Admin Control Panel 👑</h1>
+<p>Manage hospital staff & approvals</p>
+</div>
+</div>
+
+<!-- STATISTICS -->
+<div class="cards">
+<div class="card"><h4>Total Users</h4><p id="totalUsers">0</p></div>
+<div class="card"><h4>Pending</h4><p id="pendingUsers">0</p></div>
+<div class="card"><h4>Active</h4><p id="activeUsers">0</p></div>
+<div class="card"><h4>Inactive</h4><p id="inactiveUsers">0</p></div>
+</div>
+
+<!-- NEW REQUESTS -->
+<div class="table-section" id="requests">
+<h2>New User Requests</h2>
+<table>
+<thead>
+<tr>
+<th>Username</th><th>Department</th><th>Status</th><th>Actions</th>
+</tr>
+</thead>
+<tbody id="requestTable"></tbody>
+</table>
+</div>
+
+<!-- ACTIVE USERS -->
+<div class="table-section" id="activeUsersTable">
+<h2>Active Users</h2>
+<table>
+<thead>
+<tr>
+<th>Username</th><th>Role</th><th>Department</th>
+<th>Status</th><th>Staff ID</th><th>Actions</th>
+</tr>
+</thead>
+<tbody id="activeTable"></tbody>
+</table>
+</div>
+
+<!-- DELETED USERS -->
+<div class="table-section" id="deletedUsers">
+<h2>Deleted Users</h2>
+<table>
+<thead>
+<tr><th>Username</th><th>Department</th></tr>
+</thead>
+<tbody id="deletedTable"></tbody>
+</table>
+</div>
+
+</div>
+</div>
+
+<script>
+
+// ============================
+// ✅ UNIVERSAL API HANDLER (FIXED)
+// ============================
+async function apiFetch(url, options = {}) {
+
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json",
+                ...(options.headers || {})
+            }
+        });
+
+        // ✅ HANDLE AUTH ERRORS (FIXED)
+        if (res.status === 401 || res.status === 403) {
+            localStorage.clear();
+            window.location.href = "login.html";
+            return null;
+        }
+
+        return res;
+
+    } catch (err) {
+        console.error("API ERROR:", err);
+        alert("Server not reachable ❌");
+        return null;
+    }
+}
+
+// ============================
+// SECTION SWITCH
+// ============================
+function showSection(id) {
+    document.querySelectorAll(".table-section")
+        .forEach(sec => sec.style.display = "none");
+
+    document.getElementById(id).style.display = "block";
+}
+
+// ============================
+// LOAD USERS
+// ============================
+async function loadUsers() {
+
+    const res = await apiFetch(`${API}/users`);
+    if (!res) return;
+
+    const users = await res.json();
+
+    const requestTable = document.getElementById("requestTable");
+    const activeTable  = document.getElementById("activeTable");
+
+    requestTable.innerHTML = "";
+    activeTable.innerHTML  = "";
+
+    let total = 0, pending = 0, active = 0, inactive = 0;
+
+    users.filter(u => !u.approved && !u.deleted)
+         .reverse()
+         .forEach(user => {
+
+        pending++; total++;
+
+        requestTable.innerHTML += `
+        <tr>
+            <td>${user.username}</td>
+            <td>${user.department ?? "-"}</td>
+            <td>PENDING</td>
+            <td>
+                <select id="shift-${user.userId}">
+                    <option value="MORNING">Morning</option>
+                    <option value="EVENING">Evening</option>
+                    <option value="NIGHT">Night</option>
+                </select>
+                <button onclick="approveUser(${user.userId})">Approve</button>
+                <button onclick="deleteUser(${user.userId})">Delete</button>
+            </td>
+        </tr>`;
+    });
+
+    users.filter(u => u.approved && !u.deleted)
+         .forEach(user => {
+
+        total++;
+
+        const status = user.accountStatus || user.status;
+
+        if (status === "ACTIVE") active++;
+        else inactive++;
+
+        activeTable.innerHTML += `
+        <tr>
+            <td>${user.username}</td>
+            <td>${user.role?.name ?? "-"}</td>
+            <td>${user.department ?? "-"}</td>
+            <td>${status}</td>
+            <td>${user.staffId ?? "-"}</td>
+            <td>
+                ${status === "ACTIVE"
+                    ? `<button onclick="deactivateUser(${user.userId})">Deactivate</button>`
+                    : `<button onclick="activateUser(${user.userId})">Activate</button>`}
+                <button onclick="deleteUser(${user.userId})">Delete</button>
+            </td>
+        </tr>`;
+    });
+
+    document.getElementById("totalUsers").innerText = total;
+    document.getElementById("pendingUsers").innerText = pending;
+    document.getElementById("activeUsers").innerText = active;
+    document.getElementById("inactiveUsers").innerText = inactive;
+
+    loadDeletedUsers();
+}
+
+// ============================
+// ACTIONS
+// ============================
+async function deleteUser(id) {
+    if (!confirm("Delete this user?")) return;
+
+    const res = await apiFetch(`${API}/user/${id}`, { method: "DELETE" });
+    if (!res) return;
+
+    alert(await res.text());
+    loadUsers();
+}
+
+async function approveUser(id) {
+
+    const staffId = prompt("Enter Staff ID");
+    if (!staffId) return;
+
+    const shift = document.getElementById(`shift-${id}`).value;
+
+    const res = await apiFetch(`${API}/approve/${id}/${staffId}/${shift}`, {
+        method: "PUT"
+    });
+
+    if (!res) return;
+
+    alert(await res.text());
+    loadUsers();
+}
+
+async function deactivateUser(id) {
+    await toggleStatus(id, "deactivate");
+}
+
+async function activateUser(id) {
+    await toggleStatus(id, "activate");
+}
+
+async function toggleStatus(id, action) {
+
+    const res = await apiFetch(`${API}/user/${id}/${action}`, {
+        method: "PUT"
+    });
+
+    if (!res) return;
+
+    alert(await res.text());
+    loadUsers();
+}
+
+// ============================
+// DELETED USERS
+// ============================
+async function loadDeletedUsers() {
+
+    const res = await apiFetch(`${API}/deleted-users`);
+    if (!res) return;
+
+    const users = await res.json();
+    const table = document.getElementById("deletedTable");
+
+    table.innerHTML = "";
+
+    users.forEach(user => {
+        table.innerHTML += `
+        <tr>
+            <td>${user.username}</td>
+            <td>${user.department ?? "-"}</td>
+        </tr>`;
+    });
+}
+
+// ============================
+// LOGOUT
+// ============================
+function logout() {
+    localStorage.clear();
+    window.location.href = "login.html";
+}
+
+// ============================
+// INIT (FIXED TIMING ISSUE)
+// ============================
+window.onload = function () {
+    showSection("requests");
+    setTimeout(loadUsers, 200);
+};
+
+</script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>MedAccess | Digital Healthcare</title>
+
+<meta name="description" content="MedAccess - A digital healthcare platform connecting patients and doctors.">
+
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="media/icon.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+<header class="navbar">
+
+<div class="logo">
+<img src="media/icon.png" alt="MedAccess Logo" height="30">
+<span class="logo-text">MedAccess</span>
+</div>
+
+<nav class="nav-links">
+<a href="index.html" class="active">Home</a>
+<a href="doctor.html">Doctors</a>
+<a href="about.html">About</a>
+<a href="contact.html">Contact</a>
+</nav>
+
+<div class="auth-buttons">
+<a href="register.html" class="signup-btn">Signup</a>
+<a href="login.html" class="login-btn">Login</a>
+</div>
+
+</header>
+
+
+<section class="hero">
+
+<div class="hero-content">
+
+<p class="tagline">Your Digital Healthcare Partner</p>
+
+<h1>
+Better Access to <br>
+<span>Better Care</span>
+</h1>
+
+<p class="description">
+MedAccess connects patients and healthcare providers through
+secure digital services including appointments, records, and care support.
+</p>
+
+<!-- Book Appointment button removed -->
+
+</div>
+
+<div class="hero-image">
+<img src="media/dr_admin_nurse.png" alt="Healthcare Professionals">
+</div>
+
+</section>
+
+
+<section class="services-section">
+
+<div class="services-header">
+
+<p class="services-tag">OUR MEDICAL SERVICES</p>
+
+<h2>Healthcare Designed for Everyday Needs</h2>
+
+<p class="services-desc">
+From routine checkups to specialist consultations,
+MedAccess helps patients access reliable healthcare services quickly.
+</p>
+
+<div class="services-buttons">
+<a href="services.html" class="btn-light">Read More</a>
+</div>
+
+</div>
+
+
+<div class="services-wrapper">
+
+<div class="services-cards">
+
+<div class="service-card">
+<img src="media/user-doctor-solid.png" alt="General Medicine" width="30">
+<h3>General Medicine</h3>
+<p>Primary healthcare services.</p>
+</div>
+
+<div class="service-card">
+<img src="media/heart-pulse-solid.png" alt="Cardiology" width="30">
+<h3>Cardiology</h3>
+<p>Heart related treatment.</p>
+<!-- Book Now removed -->
+</div>
+
+<div class="service-card">
+<img src="media/brain-solid.png" alt="Neurology" width="30">
+<h3>Neurology</h3>
+<p>Brain and nervous system care.</p>
+<!-- Book Now removed -->
+</div>
+
+<div class="service-card">
+<img src="media/bone-solid.png" alt="Orthopedics" width="30">
+<h3>Orthopedics</h3>
+<p>Bone and joint treatment.</p>
+<!-- Book Now removed -->
+</div>
+
+</div>
+
+</div>
+
+<div class="scroll-bar">
+<div class="scroll-progress"></div>
+</div>
+
+</section>
+
+
+<footer class="mini-footer">
+
+<div class="mini-footer-container">
+
+<p>© 2026 MedAccess. All Rights Reserved.</p>
+
+<div class="mini-links">
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+<a href="contact.html">Contact</a>
+</div>
+
+</div>
+
+</footer>
+
+
+<script>
+
+const wrapper = document.querySelector(".services-cards")
+const progress = document.querySelector(".scroll-progress")
+
+if(wrapper){
+
+wrapper.addEventListener("scroll",()=>{
+
+const maxScroll = wrapper.scrollWidth - wrapper.clientWidth
+
+const percentage = (wrapper.scrollLeft / maxScroll) * 100
+
+progress.style.width = percentage + "%"
+
+})
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receptionist Dashboard - MedAccess</title>
+    <link rel="stylesheet" href="receptionist-dashboard.css">
+</head>
+<body>
+
+<!-- ===== VIOLATION OVERLAY ===== -->
+<div id="violationOverlay" style="display:none; position:fixed; inset:0;
+    background:rgba(180,0,0,0.97); z-index:9999; flex-direction:column;
+    align-items:center; justify-content:center; color:white; text-align:center;">
+    <div style="font-size:72px; margin-bottom:18px;">🚨</div>
+    <div style="font-size:28px; font-weight:800; text-transform:uppercase; margin-bottom:10px;">Access Violation</div>
+    <div id="violationMsg" style="font-size:15px; opacity:0.88; max-width:420px; margin-bottom:28px; line-height:1.6;"></div>
+</div>
+
+<!-- ===== SIDEBAR ===== -->
+<div class="sidebar">
+    <div class="sidebar-brand">
+        <h2>MedAccess</h2>
+        <div class="role-label">Receptionist</div>
+    </div>
+    <nav class="sidebar-nav">
+        <a id="nav-dashboard" onclick="showPage('dashboard', this)" class="active">
+            <span class="nav-icon">📊</span> Dashboard
+        </a>
+        <a id="nav-appointments" onclick="showPage('appointments', this)">
+            <span class="nav-icon">📅</span> Appointments
+        </a>
+        <a id="nav-book-appointment" onclick="showPage('book-appointment', this)">
+            <span class="nav-icon">➕</span> Book Appointment
+        </a>
+        <a id="nav-patients" onclick="showPage('patients', this)">
+            <span class="nav-icon">👥</span> Patients
+        </a>
+        <a id="nav-add-patient" onclick="showPage('add-patient', this)">
+            <span class="nav-icon">🏥</span> Admit Patient
+        </a>
+        <a id="nav-feedback" onclick="showPage('feedback', this)">
+            <span class="nav-icon">💬</span> Feedback
+        </a>
+        <a id="nav-discharged" onclick="showPage('discharged', this)">
+            <span class="nav-icon">✅</span> Discharged
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user-info" id="sidebarUsername">Receptionist</div>
+        <div class="shift-pill" id="shiftPill">On Duty</div><br>
+        <button class="btn-logout" onclick="doLogout()">➜ Logout</button>
+    </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+    <div class="topbar">
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="topbar-right">
+            <span class="clock" id="clock"></span>
+        </div>
+    </div>
+
+    <div class="content-area">
+
+        <!-- DASHBOARD PAGE -->
+        <div class="page active" id="page-dashboard">
+            <div class="cards">
+                <div class="card">
+                    <div class="card-label">Total Patients</div>
+                    <div class="card-value" id="cardTotalPatients">—</div>
+                    <div class="card-sub">Admitted</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Discharged</div>
+                    <div class="card-value" id="cardDischargedToday">—</div>
+                    <div class="card-sub">Ready for checkout</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Appointments Today</div>
+                    <div class="card-value" id="cardAppointmentsToday">—</div>
+                    <div class="card-sub">Scheduled</div>
+                </div>
+                <div class="card alert">
+                    <div class="card-label">Pending Feedback</div>
+                    <div class="card-value" id="cardPendingFeedback">—</div>
+                    <div class="card-sub">Patient surveys</div>
+                </div>
+            </div>
+
+            <div class="panels-grid">
+                <div class="panel">
+                    <div class="panel-header"><h2>Recent Admissions</h2></div>
+                    <table>
+                        <thead>
+                            <tr><th>Patient Name</th><th>Age</th><th>Department</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="recentAdmissionsBody">
+                            <tr><td colspan="4" class="loading">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><h2>Ready for Discharge</h2></div>
+                    <table>
+                        <thead>
+                            <tr><th>Patient Name</th><th>Department</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="readyForDischargeBody">
+                            <tr><td colspan="3" class="loading">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- APPOINTMENTS PAGE -->
+        <div class="page" id="page-appointments">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>All Appointments</h2>
+                    <input type="text" placeholder="Search appointments..." oninput="filterAppointments(this.value)">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Patient Name</th><th>Date</th><th>Time</th><th>Doctor</th>
+                            <th>Department</th><th>Status</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="appointmentsTableBody">
+                        <tr><td colspan="7" class="loading">Loading appointments...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- BOOK APPOINTMENT PAGE -->
+        <div class="page" id="page-book-appointment">
+            <div class="panel">
+                <div class="panel-header"><h2>Schedule New Appointment</h2></div>
+                <div style="padding:24px; max-width:600px;">
+                    <form id="appointmentForm" onsubmit="submitAppointment(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Patient Name *</label>
+                                <input type="text" id="apptPatientName" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email *</label>
+                                <input type="email" id="apptEmail" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Phone Number *</label>
+                                <input type="tel" id="apptPhone" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Age *</label>
+                                <input type="number" id="apptAge" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Gender *</label>
+                                <select id="apptGender" class="form-input" required>
+                                    <option value="">-- Select --</option>
+                                    <option>Male</option><option>Female</option><option>Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Department *</label>
+                                <select id="apptDepartment" class="form-input" required onchange="loadDoctorsForDept()">
+                                    <option value="">-- Select Department --</option>
+                                    <option>Cardiology</option><option>Neurology</option>
+                                    <option>Orthopedics</option><option>Pediatrics</option>
+                                    <option>Dermatology</option><option value="General">General Medicine</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Select Doctor *</label>
+                                <select id="apptDoctor" class="form-input" required>
+                                    <option value="">-- Select Doctor --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Appointment Date *</label>
+                                <input type="date" id="apptDate" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Appointment Time *</label>
+                                <input type="time" id="apptTime" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Reason for Visit *</label>
+                                <input type="text" id="apptReason" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Additional Notes</label>
+                            <textarea id="apptNotes" class="form-input" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-teal btn-full">📅 Schedule Appointment</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADMIT PATIENT PAGE -->
+        <div class="page" id="page-add-patient">
+            <div class="panel">
+                <div class="panel-header"><h2>Admit New Patient</h2></div>
+                <div style="padding:24px; max-width:560px;">
+                    <form id="admitForm" onsubmit="submitAdmitPatient(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Patient Name *</label>
+                                <input type="text" id="admitName" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Age *</label>
+                                <input type="number" id="admitAge" class="form-input" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Gender *</label>
+                                <select id="admitGender" class="form-input" required>
+                                    <option value="">-- Select --</option>
+                                    <option>Male</option><option>Female</option><option>Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Department *</label>
+                                <select id="admitDepartment" class="form-input" required>
+                                    <option value="">-- Select --</option>
+                                    <option>Cardiology</option><option>Neurology</option>
+                                    <option>Orthopedics</option><option>Pediatrics</option>
+                                    <option>Dermatology</option><option value="General">General Medicine</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Disease / Condition *</label>
+                            <input type="text" id="admitDisease" class="form-input" required>
+                        </div>
+                        <button type="submit" class="btn btn-teal btn-full">🏥 Admit Patient</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- FEEDBACK PAGE -->
+        <div class="page" id="page-feedback">
+            <div class="panel">
+                <div class="panel-header"><h2>Patient Feedback & Survey</h2></div>
+                <div style="padding:24px; max-width:600px;">
+                    <form id="feedbackForm" onsubmit="submitFeedback(event)">
+                        <div class="form-group">
+                            <label class="form-label">Patient Name *</label>
+                            <input type="text" id="fbPatientName" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email *</label>
+                            <input type="email" id="fbEmail" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" id="fbPhone" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Visit Date *</label>
+                            <input type="date" id="fbVisitDate" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Department Visited *</label>
+                            <select id="fbDepartment" class="form-input" required>
+                                <option value="">-- Select Department --</option>
+                                <option>Cardiology</option><option>Neurology</option>
+                                <option>Orthopedics</option><option>Pediatrics</option>
+                                <option>Dermatology</option><option value="General">General Medicine</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Doctor Name</label>
+                            <input type="text" id="fbDoctorName" class="form-input">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Overall Experience Rating *</label>
+                            <div class="rating-group">
+                                <label><input type="radio" name="overallRating" value="5" required> ⭐⭐⭐⭐⭐ Excellent</label>
+                                <label><input type="radio" name="overallRating" value="4"> ⭐⭐⭐⭐ Good</label>
+                                <label><input type="radio" name="overallRating" value="3"> ⭐⭐⭐ Average</label>
+                                <label><input type="radio" name="overallRating" value="2"> ⭐⭐ Poor</label>
+                                <label><input type="radio" name="overallRating" value="1"> ⭐ Very Poor</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Doctor's Behavior *</label>
+                            <div class="rating-group">
+                                <label><input type="radio" name="doctorRating" value="5" required> ⭐⭐⭐⭐⭐ Excellent</label>
+                                <label><input type="radio" name="doctorRating" value="4"> ⭐⭐⭐⭐ Good</label>
+                                <label><input type="radio" name="doctorRating" value="3"> ⭐⭐⭐ Average</label>
+                                <label><input type="radio" name="doctorRating" value="2"> ⭐⭐ Poor</label>
+                                <label><input type="radio" name="doctorRating" value="1"> ⭐ Very Poor</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Facility & Cleanliness *</label>
+                            <div class="rating-group">
+                                <label><input type="radio" name="facilityRating" value="5" required> ⭐⭐⭐⭐⭐ Excellent</label>
+                                <label><input type="radio" name="facilityRating" value="4"> ⭐⭐⭐⭐ Good</label>
+                                <label><input type="radio" name="facilityRating" value="3"> ⭐⭐⭐ Average</label>
+                                <label><input type="radio" name="facilityRating" value="2"> ⭐⭐ Poor</label>
+                                <label><input type="radio" name="facilityRating" value="1"> ⭐ Very Poor</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Staff Courtesy *</label>
+                            <div class="rating-group">
+                                <label><input type="radio" name="staffRating" value="5" required> ⭐⭐⭐⭐⭐ Excellent</label>
+                                <label><input type="radio" name="staffRating" value="4"> ⭐⭐⭐⭐ Good</label>
+                                <label><input type="radio" name="staffRating" value="3"> ⭐⭐⭐ Average</label>
+                                <label><input type="radio" name="staffRating" value="2"> ⭐⭐ Poor</label>
+                                <label><input type="radio" name="staffRating" value="1"> ⭐ Very Poor</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Comments *</label>
+                            <textarea id="fbComments" class="form-input" rows="4" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Would you recommend us? *</label>
+                            <div class="rating-group">
+                                <label><input type="radio" name="recommend" value="yes" required> Yes, definitely!</label>
+                                <label><input type="radio" name="recommend" value="maybe"> Maybe</label>
+                                <label><input type="radio" name="recommend" value="no"> No</label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-teal btn-full">💬 Submit Feedback</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- PATIENTS PAGE -->
+        <div class="page" id="page-patients">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>All Admitted Patients</h2>
+                    <input type="text" placeholder="Search patients..." oninput="filterPatients(this.value)">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Patient Name</th><th>Age</th><th>Gender</th>
+                            <th>Disease Type</th><th>Department</th><th>Status</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="patientsTableBody">
+                        <tr><td colspan="7" class="loading">Loading patients...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- DISCHARGED PAGE -->
+        <div class="page" id="page-discharged">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Discharged Patients</h2>
+                    <input type="text" placeholder="Search..." oninput="filterDischarged(this.value)">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                        <th>Patient Name</th><th>Department</th><th>Disease</th>
+                        <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dischargedTableBody">
+                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE_URL = "http://localhost:8080";
+const token    = localStorage.getItem("token");
+const role     = localStorage.getItem("role");
+const username = localStorage.getItem("username") || "Receptionist";
+
+// Auth guard
+if (!token || !(role || "").toUpperCase().includes("RECEPTIONIST")) {
+    window.location.href = "login.html";
+}
+
+document.getElementById("sidebarUsername").innerText = username;
+
+// Clock
+setInterval(() => {
+    document.getElementById("clock").innerText =
+        new Date().toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+}, 1000);
+
+// Violation overlay
+function triggerViolation(msg) {
+    document.getElementById("violationMsg").innerText = msg || "Access denied";
+    document.getElementById("violationOverlay").style.display = "flex";
+    setTimeout(() => { localStorage.clear(); window.location.href = "login.html"; }, 3000);
+}
+
+// Central fetch
+async function apiFetch(url, options = {}) {
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json",
+                ...(options.headers || {})
+            }
+        });
+        if (res.status === 401 || res.status === 403) {
+            triggerViolation("Session expired or access denied");
+            return null;
+        }
+        return res;
+    } catch (err) {
+        showToast("❌ Cannot reach server", "error");
+        return null;
+    }
+}
+
+// Page navigation
+const pageTitles = {
+    "dashboard": "Dashboard",
+    "appointments": "Appointments",
+    "book-appointment": "Schedule Appointment",
+    "add-patient": "Admit Patient",
+    "feedback": "Patient Feedback",
+    "patients": "All Patients",
+    "discharged": "Discharged Patients"
+};
+
+function showPage(page, el) {
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".sidebar-nav a").forEach(a => a.classList.remove("active"));
+    document.getElementById("page-" + page).classList.add("active");
+    document.getElementById("pageTitle").innerText = pageTitles[page] || page;
+    if (el) el.classList.add("active");
+    const loaders = {
+        "dashboard": loadDashboard,
+        "appointments": loadAppointments,
+        "patients": loadPatients,
+        "discharged": loadDischarged
+    };
+    if (loaders[page]) loaders[page]();
+}
+
+// ── DASHBOARD
+async function loadDashboard() {
+    const res = await apiFetch(`${BASE_URL}/reception/dashboard-stats`);
+    if (!res || !res.ok) return;
+    const stats = await res.json();
+
+    document.getElementById("cardTotalPatients").innerText     = stats.totalPatients     ?? "—";
+    document.getElementById("cardDischargedToday").innerText   = stats.dischargedToday   ?? "—";
+    document.getElementById("cardAppointmentsToday").innerText = stats.appointmentsToday ?? "—";
+    document.getElementById("cardPendingFeedback").innerText   = stats.pendingFeedback   ?? "—";
+
+    // Recent admissions
+    const pRes = await apiFetch(`${BASE_URL}/reception/patients`);
+    if (!pRes || !pRes.ok) return;
+    const data = await pRes.json();
+    // backend returns {patients:[...], totalPatients:N}
+    const patients = Array.isArray(data) ? data : (data.patients || []);
+
+    const admitted = patients.filter(p => p.status === "ADMITTED" || !p.status);
+    const recent   = admitted.slice(-5).reverse();
+
+    document.getElementById("recentAdmissionsBody").innerHTML = recent.length
+        ? recent.map(p => `<tr>
+            <td>${p.patientName || "—"}</td>
+            <td>${p.age || "—"}</td>
+            <td>${p.department || "—"}</td>
+            <td><span class="badge badge-teal">${p.status || "ADMITTED"}</span></td>
+          </tr>`).join("")
+        : `<tr><td colspan="4" class="empty-state">No recent admissions</td></tr>`;
+
+    const discharged = patients.filter(p => p.status === "DISCHARGED");
+    document.getElementById("readyForDischargeBody").innerHTML = discharged.length
+        ? discharged.map(p => `<tr>
+            <td>${p.patientName || "—"}</td>
+            <td>${p.department || "—"}</td>
+            <td><button class="btn btn-sm btn-green" onclick="checkoutPatient(${p.patientId})">Checkout</button></td>
+          </tr>`).join("")
+        : `<tr><td colspan="3" class="empty-state">No patients ready for discharge</td></tr>`;
+}
+
+// ── APPOINTMENTS
+let allAppointments = [];
+
+async function loadAppointments() {
+    const res = await apiFetch(`${BASE_URL}/reception/appointments`);
+    if (!res || !res.ok) {
+        document.getElementById("appointmentsTableBody").innerHTML =
+            `<tr><td colspan="7" class="error">Failed to load appointments</td></tr>`;
+        return;
+    }
+    const data = await res.json();
+    allAppointments = Array.isArray(data) ? data : [];
+    renderAppointmentsTable(allAppointments);
+}
+
+function renderAppointmentsTable(list) {
+    const tbody = document.getElementById("appointmentsTableBody");
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No appointments found</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = list.map(a => `<tr>
+        <td>${a.patientName || "—"}</td>
+        <td>${a.appointmentDate || "—"}</td>
+        <td>${a.appointmentTime || "—"}</td>
+        <td>${a.doctorName || "—"}</td>
+        <td>${a.department || "—"}</td>
+        <td><span class="badge badge-teal">${a.status || "Scheduled"}</span></td>
+        <td>
+            <button class="btn btn-sm btn-red" onclick="cancelAppointment(${a.appointmentId})">Cancel</button>
+        </td>
+    </tr>`).join("");
+}
+
+function filterAppointments(q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll("#appointmentsTableBody tr").forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(lower) ? "" : "none";
+    });
+}
+
+// ── SUBMIT APPOINTMENT
+async function submitAppointment(e) {
+    e.preventDefault();
+    const payload = {
+        patientName:     document.getElementById("apptPatientName").value.trim(),
+        email:           document.getElementById("apptEmail").value.trim(),
+        phone:           document.getElementById("apptPhone").value.trim(),
+        age:             parseInt(document.getElementById("apptAge").value),
+        gender:          document.getElementById("apptGender").value,
+        department:      document.getElementById("apptDepartment").value,
+        doctorName:      document.getElementById("apptDoctor").value,
+        appointmentDate: document.getElementById("apptDate").value,
+        appointmentTime: document.getElementById("apptTime").value,
+        reasonForVisit:  document.getElementById("apptReason").value.trim(),
+        additionalNotes: document.getElementById("apptNotes").value.trim(),
+        status: "Scheduled"
+    };
+    const res = await apiFetch(`${BASE_URL}/reception/create-appointment`, {
+        method: "POST", body: JSON.stringify(payload)
+    });
+    if (!res) return;
+    if (res.ok) {
+        const result = await res.json();
+        showToast(`✅ Appointment scheduled! Ref: ${result.confirmationNumber || "—"}`, "success");
+        document.getElementById("appointmentForm").reset();
+        setTimeout(() => showPage("appointments", document.getElementById("nav-appointments")), 1500);
+    } else {
+        showToast("❌ " + (await res.text()), "error");
+    }
+}
+
+// ── CANCEL APPOINTMENT (real API)
+async function cancelAppointment(id) {
+    if (!id || !confirm("Cancel this appointment?")) return;
+    const res = await apiFetch(`${BASE_URL}/reception/cancel-appointment/${id}`, { method: "DELETE" });
+    if (!res) return;
+    if (res.ok) {
+        showToast("✅ Appointment cancelled", "success");
+        loadAppointments();
+    } else {
+        showToast("❌ Failed to cancel appointment", "error");
+    }
+}
+
+// ── LOAD DOCTORS
+function loadDoctorsForDept() {
+    const dept = document.getElementById("apptDepartment").value;
+    const sel  = document.getElementById("apptDoctor");
+    const map  = {
+        "Cardiology":  ["Dr. Ramesh Kumar", "Dr. Priya Sharma"],
+        "Neurology":   ["Dr. Arjun Patel",  "Dr. Meera Singh"],
+        "Orthopedics": ["Dr. Vikram Desai", "Dr. Anjali Gupta"],
+        "Pediatrics":  ["Dr. Rohit Joshi",  "Dr. Sneha Malhotra"],
+        "Dermatology": ["Dr. Sanjay Reddy", "Dr. Pooja Verma"],
+        "General":     ["Dr. Suresh Nair",  "Dr. Divya Iyer"]
+    };
+    sel.innerHTML = `<option value="">-- Select Doctor --</option>` +
+        (map[dept] || []).map(d => `<option value="${d}">${d}</option>`).join("");
+}
+
+// ── ADMIT PATIENT
+async function submitAdmitPatient(e) {
+    e.preventDefault();
+    const payload = {
+        patientName: document.getElementById("admitName").value.trim(),
+        age:         parseInt(document.getElementById("admitAge").value),
+        gender:      document.getElementById("admitGender").value,
+        department:  document.getElementById("admitDepartment").value,
+        diseaseType: document.getElementById("admitDisease").value.trim()
+    };
+    const res = await apiFetch(`${BASE_URL}/reception/create-patient`, {
+        method: "POST", body: JSON.stringify(payload)
+    });
+    if (!res) return;
+    if (res.ok) {
+        showToast("✅ Patient admitted successfully!", "success");
+        document.getElementById("admitForm").reset();
+        setTimeout(() => showPage("patients", document.getElementById("nav-patients")), 1500);
+    } else {
+        showToast("❌ " + (await res.text()), "error");
+    }
+}
+
+// ── CHECKOUT PATIENT (real API)
+async function checkoutPatient(id) {
+    if (!id || !confirm("Process checkout for this patient?")) return;
+    const res = await apiFetch(`${BASE_URL}/reception/checkout/${id}`, { method: "POST" });
+    if (!res) return;
+    if (res.ok) {
+        showToast("✅ Patient checked out successfully", "success");
+        loadDashboard();
+    } else {
+        showToast("❌ Checkout failed", "error");
+    }
+}
+
+// ── PATIENTS
+// ── PASTE THIS into receptionist-dashboard.html <script>, replacing the existing loadPatients() ──
+
+let approvedIds = new Set();
+
+async function loadPatients() {
+    const res = await apiFetch(`${BASE_URL}/reception/patients`);
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    const patients = Array.isArray(data) ? data : (data.patients || []);
+    allPatients = patients.filter(p => !p.deleted && p.status !== "DISCHARGED");
+
+    // Fetch head-nurse-approved patients
+    try {
+        const approvedRes = await apiFetch(`${BASE_URL}/reception/approved-for-discharge`);
+        if (approvedRes && approvedRes.ok) {
+            const approved = await approvedRes.json();
+            approvedIds = new Set((approved || []).map(p => p.patientId));
+        }
+    } catch (e) { approvedIds = new Set(); }
+
+    renderPatientsTable();
+}
+
+function renderPatientsTable() {
+    const tbody = document.getElementById("patientsTableBody");
+    if (!allPatients.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No admitted patients</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = allPatients.map(p => {
+        const approved = approvedIds.has(p.patientId);
+        return `<tr>
+            <td><strong>${p.patientName || "—"}</strong></td>
+            <td>${p.age || "—"} yrs</td>
+            <td>${p.gender || "—"}</td>
+            <td>${p.diseaseType || "—"}</td>
+            <td>${p.department || "—"}</td>
+            <td><span class="badge badge-teal">${p.status || "ADMITTED"}</span></td>
+            <td>
+                ${approved
+                    ? `<span style="display:inline-block;padding:4px 10px;border-radius:12px;
+                                   background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:700;
+                                   border:1px solid #c8e6c9;">
+                           ✅ Head Nurse Approved
+                       </span>`
+                    : `<span style="display:inline-block;padding:4px 10px;border-radius:12px;
+                                   background:#f0f0f0;color:#999;font-size:11px;font-weight:600;">
+                           ⏳ Pending
+                       </span>`
+                }
+            </td>
+        </tr>`;
+    }).join("");
+}
+
+function filterPatients(q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll("#patientsTableBody tr").forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(lower) ? "" : "none";
+    });
+}
+function filterPatients(q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll("#patientsTableBody tr").forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(lower) ? "" : "none";
+    });
+}
+
+// ── DISCHARGED
+let allDischarged = [];
+
+async function loadDischarged() {
+    const res = await apiFetch(`${BASE_URL}/reception/discharged`);
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    allDischarged = Array.isArray(data) ? data : [];
+
+    const tbody = document.getElementById("dischargedTableBody");
+    if (!allDischarged.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No discharged patients</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = allDischarged.map(p => `<tr>
+        <td><strong>${p.patientName || "—"}</strong></td>
+        <td>${p.department || "—"}</td>
+        <td>${p.diseaseType || "—"}</td>
+        <td><span class="badge badge-green">✓ Discharged</span></td>
+    </tr>`).join("");
+}
+
+function filterDischarged(q) {
+    const lower = q.toLowerCase();
+    document.querySelectorAll("#dischargedTableBody tr").forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(lower) ? "" : "none";
+    });
+}
+
+// ── FEEDBACK (fixed: parseInt for ratings)
+async function submitFeedback(e) {
+    e.preventDefault();
+    const getRadio = name => {
+        const el = document.querySelector(`input[name="${name}"]:checked`);
+        return el ? parseInt(el.value) : null;
+    };
+    const overallRating  = getRadio("overallRating");
+    const doctorRating   = getRadio("doctorRating");
+    const facilityRating = getRadio("facilityRating");
+    const staffRating    = getRadio("staffRating");
+    const recommend      = document.querySelector('input[name="recommend"]:checked');
+
+    if (!overallRating || !doctorRating || !facilityRating || !staffRating || !recommend) {
+        showToast("❌ Please fill all rating fields", "error");
+        return;
+    }
+
+    const payload = {
+        patientName:     document.getElementById("fbPatientName").value.trim(),
+        email:           document.getElementById("fbEmail").value.trim(),
+        phone:           document.getElementById("fbPhone").value.trim(),
+        visitDate:       document.getElementById("fbVisitDate").value,
+        department:      document.getElementById("fbDepartment").value,
+        doctorName:      document.getElementById("fbDoctorName").value.trim(),
+        overallRating,
+        doctorRating,
+        facilityRating,
+        staffRating,
+        comments:        document.getElementById("fbComments").value.trim(),
+        recommend:       recommend.value,
+        status:          "Pending"
+    };
+
+    const res = await apiFetch(`${BASE_URL}/reception/submit-feedback`, {
+        method: "POST", body: JSON.stringify(payload)
+    });
+    if (!res) return;
+    if (res.ok) {
+        showToast("✅ Feedback submitted successfully!", "success");
+        document.getElementById("feedbackForm").reset();
+        setTimeout(() => showPage("dashboard", document.getElementById("nav-dashboard")), 1500);
+    } else {
+        showToast("❌ " + (await res.text()), "error");
+    }
+}
+
+// ── TOAST
+function showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.innerText = msg;
+    t.className = `toast show ${type}`;
+    setTimeout(() => t.className = "toast", 3500);
+}
+
+// ── LOGOUT
+function doLogout() {
+    localStorage.clear();
+    window.location.href = "login.html";
+}
+
+// ── INIT
+showPage("dashboard", document.getElementById("nav-dashboard"));
+</script>
+</body>
+</html>

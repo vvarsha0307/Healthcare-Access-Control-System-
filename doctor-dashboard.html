@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doctor Dashboard</title>
+<link rel="stylesheet" href="doctor-dashboard.css">
+<style>
+.header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; }
+.header-title { font-size:20px; font-weight:700; }
+.btn-logout { background:#e53935; color:white; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; font-size:14px; }
+.btn-logout:hover { background:#c62828; }
+.user-info { font-size:13px; opacity:0.85; margin-right:12px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<div class="header">
+    <div class="header-title">Doctor Dashboard 👨‍⚕️</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <span class="user-info" id="navUsername"></span>
+        <button class="btn-logout" onclick="doLogout()">⬡ Logout</button>
+    </div>
+</div>
+
+<div class="container">
+    <div class="sidebar">
+        <ul>
+            <li class="active" onclick="loadDepartment('Cardiology', this)">Cardiology</li>
+            <li onclick="loadDepartment('Neurology', this)">Neurology</li>
+            <li onclick="loadDepartment('Orthopedics', this)">Orthopedics</li>
+            <li onclick="loadDepartment('Pediatrics', this)">Pediatrics</li>
+            <li onclick="loadDepartment('Dermatology', this)">Dermatology</li>
+        </ul>
+    </div>
+
+    <div class="content">
+        <h2>Patients</h2>
+        <table id="patientTable">
+            <thead>
+                <tr><th>Name</th><th>Age</th><th>Gender</th><th>Disease</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="5">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="logoutOverlay" style="
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.85); z-index:9999;
+    flex-direction:column; align-items:center;
+    justify-content:center; color:white; text-align:center;">
+    <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+    <div style="font-size:22px;font-weight:700;margin-bottom:8px;" id="overlayTitle">Session Expired</div>
+    <div style="font-size:14px;opacity:0.8;" id="overlayMsg">Redirecting to login...</div>
+</div>
+
+<script>
+const BASE_URL = "http://localhost:8080";
+const token    = localStorage.getItem("token");
+const role     = localStorage.getItem("role");
+const username = localStorage.getItem("username") || "Doctor";
+
+if (!token) window.location.href="login.html";
+if (role!=="DOCTOR") { showOverlay("Unauthorized ❌","You are not authorized"); setTimeout(()=>{localStorage.clear();window.location.href="login.html";},2500); }
+
+document.getElementById("navUsername").innerText = "👤 " + username;
+
+let idleTimer;
+const IDLE_LIMIT=15*60*1000;
+function resetIdle(){ clearTimeout(idleTimer); idleTimer=setTimeout(()=>{showOverlay("Session Expired","Idle 15 min, logging out");setTimeout(()=>{localStorage.clear();window.location.href="login.html";},2000);},IDLE_LIMIT);}
+["mousemove","keydown","click","scroll","touchstart"].forEach(e=>document.addEventListener(e,resetIdle));
+resetIdle();
+
+function showOverlay(title,msg){document.getElementById("overlayTitle").innerText=title;document.getElementById("overlayMsg").innerText=msg;document.getElementById("logoutOverlay").style.display="flex";}
+function doLogout(){localStorage.clear();window.location.href="login.html";}
+function forceLogout(msg){showOverlay("Session Ended",msg||"Redirecting");setTimeout(()=>{localStorage.clear();window.location.href="login.html";},2000);}
+async function handleResponse(res){if(res.status===401){forceLogout("Unauthorized");return null;} if(res.status===403){const t=await res.text();forceLogout(t);return null;} if(!res.ok){alert(await res.text());return null;} return res;}
+
+async function validateIntent(action,department){
+    const res=await fetch(`${BASE_URL}/auth/validate-intent`,{method:"POST",headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,department})});
+    const result=await res.json();
+    if(!res.ok){forceLogout(result.error||"Intent policy violation");return false;}
+    return true;
+}
+
+async function loadDepartment(dept,element){
+    const tbody=document.getElementById("tableBody");
+    tbody.innerHTML="<tr><td colspan='5'>Loading...</td></tr>";
+    document.querySelectorAll('.sidebar li').forEach(li=>li.classList.remove('active'));
+    if(element) element.classList.add('active');
+
+    try{
+        const res=await fetch(`${BASE_URL}/doctor/patients/department/${dept}`,{headers:{'Authorization':'Bearer '+token}});
+        const validRes=await handleResponse(res); if(!validRes){tbody.innerHTML="<tr><td colspan='5'>Access blocked ❌</td></tr>";return;}
+        const patients=await validRes.json(); tbody.innerHTML="";
+        if(!patients||patients.length===0){tbody.innerHTML="<tr><td colspan='5'>No Patients Found</td></tr>";return;}
+        patients.forEach(p=>{
+            const tr=document.createElement("tr");
+            tr.innerHTML=`<td>${p.patientName||'-'}</td><td>${p.age??'-'}</td><td>${p.gender||'-'}</td><td>${p.diseaseType||'-'}</td>
+            <td>
+                <button onclick="toggleVitals(${p.patientId},'${dept}')">Vitals</button>
+                <button onclick="diagnose(${p.patientId},'${dept}')">Diagnose</button>
+                <button onclick="signReport(${p.patientId},'${dept}')">Sign</button>
+            </td>`;
+            tbody.appendChild(tr);
+            const vitalsRow=document.createElement("tr");
+            vitalsRow.id=`vitals-${p.patientId}`; vitalsRow.style.display="none";
+            vitalsRow.innerHTML=`<td colspan="5" id="vitals-content-${p.patientId}">Loading...</td>`;
+            tbody.appendChild(vitalsRow);
+        });
+    }catch(err){tbody.innerHTML="<tr><td colspan='5'>Server not reachable ❌</td></tr>";}
+}
+
+async function toggleVitals(patientId,dept){
+    if(!await validateIntent("VIEW_VITALS",dept)) return;
+    const row=document.getElementById(`vitals-${patientId}`);
+    const cell=document.getElementById(`vitals-content-${patientId}`);
+    if(row.style.display==="table-row"){row.style.display="none";return;}
+    row.style.display="table-row"; cell.innerHTML="Loading...";
+    try{
+        const res=await fetch(`${BASE_URL}/doctor/vitals/${patientId}`,{headers:{'Authorization':'Bearer '+token}});
+        const validRes=await handleResponse(res); if(!validRes){row.style.display="none";return;}
+        const v=await validRes.json();
+        cell.innerHTML=`<strong>Temp:</strong> ${v.temperature??'-'} °C | <strong>BP:</strong> ${v.bp??'-'} | <strong>Pulse:</strong> ${v.pulse??'-'} bpm`;
+    }catch(err){cell.innerHTML="Error loading vitals";}
+}
+
+async function diagnose(patientId,dept){
+    if(!await validateIntent("ENTER_DIAGNOSIS",dept)) return;
+    const diagnosis=prompt("Enter Diagnosis:"); if(!diagnosis) return;
+    const treatment=prompt("Enter Treatment:"); if(!treatment) return;
+    try{
+        const res=await fetch(`${BASE_URL}/doctor/diagnose/${patientId}`,{method:"PUT",headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({diagnosis,treatment})});
+        const validRes=await handleResponse(res); if(!validRes) return;
+        alert(await validRes.text());
+    }catch(err){alert("Error saving diagnosis");}
+}
+
+async function signReport(patientId,dept){
+    if(!await validateIntent("SIGN",dept)) return;
+    if(!confirm("Sign and finalize report?")) return;
+    try{
+        const res=await fetch(`${BASE_URL}/doctor/sign/${patientId}`,{method:"POST",headers:{'Authorization':'Bearer '+token}});
+        const validRes=await handleResponse(res); if(!validRes) return;
+        alert(await validRes.text());
+    }catch(err){alert("Error signing report");}
+}
+
+loadDepartment("Cardiology",document.querySelector('.sidebar li.active'));
+</script>
+</body>
+</html>

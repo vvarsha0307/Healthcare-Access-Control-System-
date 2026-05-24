@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nurse Dashboard — MedAccess</title>
+  <link rel="stylesheet" href="nurse-dashboard.css">
+  <style>
+    #violationOverlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(180,0,0,0.97); z-index:9999;
+      flex-direction:column; align-items:center;
+      justify-content:center; color:white; text-align:center;
+    }
+    #violationOverlay.show { display:flex; }
+    .v-icon  { font-size:72px; margin-bottom:18px; }
+    .v-title { font-size:28px; font-weight:800; text-transform:uppercase; margin-bottom:10px; }
+    .v-msg   { font-size:15px; opacity:0.88; max-width:440px; margin-bottom:28px; line-height:1.6; }
+    .v-countdown { font-size:13px; opacity:0.72; margin-bottom:8px; }
+    .v-bar-wrap { width:280px; height:5px; background:rgba(255,255,255,0.25); border-radius:10px; overflow:hidden; }
+    .v-bar { height:100%; background:white; border-radius:10px; width:100%; transition:width 1s linear; }
+    .v-log { margin-top:20px; font-size:11px; opacity:0.5; }
+    #sessionOverlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.88); z-index:9998;
+      flex-direction:column; align-items:center;
+      justify-content:center; color:white; text-align:center;
+    }
+    #sessionOverlay.show { display:flex; }
+    .so-icon  { font-size:56px; margin-bottom:14px; }
+    .so-title { font-size:22px; font-weight:700; margin-bottom:8px; }
+    .so-msg   { font-size:14px; opacity:0.8; }
+    .approved-badge {
+      display:inline-block; padding:2px 8px; border-radius:12px;
+      background:#e8f5e9; color:#2e7d32; font-size:11px; font-weight:700;
+    }
+    .flow-hint {
+      background:#fff8e1; border:1px solid #ffe082; border-radius:8px;
+      padding:10px 14px; font-size:12px; color:#795548; margin-bottom:14px;
+    }
+    .flow-step {
+      display:inline-flex; align-items:center; gap:4px;
+      padding:3px 9px; border-radius:12px; font-size:11px; font-weight:700;
+      margin-right:4px;
+    }
+    .flow-step.done    { background:#e8f5e9; color:#2e7d32; }
+    .flow-step.pending { background:#f0f0f0; color:#999; }
+    .flow-step.current { background:#e3f2fd; color:#1565c0; }
+  </style>
+</head>
+<body>
+
+<!-- VIOLATION OVERLAY -->
+<div id="violationOverlay">
+  <div class="v-icon">🚨</div>
+  <div class="v-title">Access Violation</div>
+  <div class="v-msg" id="vMsg">Unauthorized action detected.</div>
+  <div class="v-countdown" id="vCountdown">Logging out in 3...</div>
+  <div class="v-bar-wrap"><div class="v-bar" id="vBar"></div></div>
+  <div class="v-log">This incident has been logged.</div>
+</div>
+
+<!-- SESSION OVERLAY -->
+<div id="sessionOverlay">
+  <div class="so-icon">🔒</div>
+  <div class="so-title" id="soTitle">Session Expired</div>
+  <div class="so-msg" id="soMsg">Redirecting to login...</div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <h2>MedAccess</h2>
+    <div class="role-label" id="roleLabel">Nurse</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a onclick="showPage('dashboard')" id="nav-dashboard" class="active">
+      <span class="nav-icon">⊞</span> Dashboard
+    </a>
+    <a onclick="showPage('patients')" id="nav-patients">
+      <span class="nav-icon">👥</span> Patients
+    </a>
+    <a onclick="showPage('vitals')" id="nav-vitals">
+      <span class="nav-icon">💓</span> Enter Vitals
+    </a>
+
+    <!-- HEAD NURSE ONLY — rendered by JS -->
+    <div id="headNurseNav" style="display:none;">
+      <div class="head-only-label" style="font-size:10px;color:rgba(255,255,255,0.5);padding:10px 16px 4px;text-transform:uppercase;letter-spacing:1px;">
+        Head Nurse Only
+      </div>
+      <a onclick="showPage('notes')" id="nav-notes">
+        <span class="nav-icon">📋</span> Doctor Notes
+      </a>
+      <a onclick="showPage('discharge')" id="nav-discharge">
+        <span class="nav-icon">🏁</span> Approve Discharge
+      </a>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user-info" id="sidebarUsername"></div>
+    <div class="shift-pill" id="shiftPill">Checking shift...</div><br>
+    <button class="btn-logout" onclick="doLogout()">➜ Logout</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <h1 id="pageTitle">Dashboard</h1>
+    <div class="topbar-right">
+      <span id="headBadge" class="head-badge" style="display:none;">👑 Head Nurse</span>
+      <span class="clock" id="clock"></span>
+    </div>
+  </div>
+
+  <div class="content-area">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Active Patients</div>
+          <div class="card-value" id="cardPatients">—</div>
+          <div class="card-sub" id="cardDept">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Current Shift</div>
+          <div class="card-value" id="cardShift" style="font-size:18px;">—</div>
+        </div>
+        <div class="card alert">
+          <div class="card-label">Unsigned Reports</div>
+          <div class="card-value" id="cardAlerts">—</div>
+          <div class="card-sub">Need doctor signature</div>
+        </div>
+        <div class="card warn">
+          <div class="card-label">Abnormal Vitals</div>
+          <div class="card-value" id="cardAbnormal">—</div>
+          <div class="card-sub">Require attention</div>
+        </div>
+      </div>
+
+      <!-- HEAD NURSE: flow reminder -->
+      <div id="headNurseFlowBanner" style="display:none;" class="flow-hint" style="margin-bottom:16px;">
+        📋 <strong>Required workflow:</strong>
+        <span class="flow-step done">1. View Doctor Notes</span> →
+        <span class="flow-step done">2. Enter Vitals</span> →
+        <span class="flow-step done">3. Approve Discharge</span>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Active Patients</h2>
+          <button class="btn btn-teal" onclick="showPage('patients')">View All →</button>
+        </div>
+        <div id="dashPreview"><div class="loading">Loading patients...</div></div>
+      </div>
+    </div>
+
+    <!-- PATIENTS -->
+    <div id="page-patients" class="page">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Patients</h2>
+          <input type="text" placeholder="Search..." id="searchInput" oninput="filterTable('patientTbody','searchInput')">
+        </div>
+        <div id="patientTableWrap"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- VITALS -->
+    <div id="page-vitals" class="page">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Enter Vitals</h2>
+          <input type="text" placeholder="Search..." id="searchVitals" oninput="filterTable('vitalsTbody','searchVitals')">
+        </div>
+        <div id="vitalsTableWrap"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- DOCTOR NOTES (HEAD NURSE ONLY) -->
+    <div id="page-notes" class="page">
+      <div class="panel">
+        <div class="panel-header"><h2>Doctor Notes</h2></div>
+        <div class="flow-hint" style="margin:16px 16px 0;">
+          📋 Step 1 of 3 — View notes for a patient to unlock vitals entry and discharge approval.
+        </div>
+        <div id="notesTableWrap"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- DISCHARGE (HEAD NURSE ONLY) -->
+    <div id="page-discharge" class="page">
+      <div class="panel">
+        <div class="panel-header"><h2>Approve Discharge</h2></div>
+        <div class="flow-hint" style="margin:16px 16px 0;">
+          🏁 Step 3 of 3 — Complete flow: <strong>View Notes → Enter Vitals → Discharge</strong>. 
+          Discharge button is locked until both steps are done.
+        </div>
+        <div id="dischargeTableWrap"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- VITALS MODAL -->
+<div class="modal-overlay" id="vitalsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Enter Vitals — <span id="vitalsPatientName"></span></h3>
+      <button class="modal-close" onclick="closeModal('vitalsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Blood Pressure *</label>
+        <input class="form-input" type="text" id="inputBp" placeholder="e.g. 120/80">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Temperature (°C) *</label>
+          <input class="form-input" type="number" id="inputTemp" placeholder="e.g. 37.2" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pulse (bpm) *</label>
+          <input class="form-input" type="number" id="inputPulse" placeholder="e.g. 72">
+        </div>
+      </div>
+      <button class="btn btn-teal btn-full" onclick="submitVitals()">💾 Save Vitals</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES MODAL -->
+<div class="modal-overlay" id="notesModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Doctor Notes — <span id="notesPatientName"></span></h3>
+      <button class="modal-close" onclick="closeModal('notesModal')">✕</button>
+    </div>
+    <div class="modal-body" id="notesBody">Loading...</div>
+  </div>
+</div>
+
+<!-- DISCHARGE MODAL -->
+<div class="modal-overlay" id="dischargeModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Confirm Discharge</h3>
+      <button class="modal-close" onclick="closeModal('dischargeModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:16px;color:#444;font-size:14px;">
+        Approve discharge for <strong id="dischargePatientName"></strong>?
+      </p>
+      <div style="background:#f0faf9;border:1px solid #c8eeec;border-radius:8px;
+                  padding:12px;margin-bottom:16px;font-size:13px;color:#555;line-height:1.8;">
+        ✅ Doctor notes viewed<br>
+        ✅ Vitals recorded<br>
+        ✅ Status will update to DISCHARGED (receptionist will process checkout)
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal('dischargeModal')">Cancel</button>
+        <button class="btn btn-red" onclick="confirmDischarge()">🏁 Approve Discharge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE_URL = "http://localhost:8080";
+const token    = localStorage.getItem("token");
+const role     = localStorage.getItem("role");
+const subRole  = localStorage.getItem("subRole");   // "HEAD_NURSE" or "DEPT_NURSE"
+const uname    = localStorage.getItem("username") || "Nurse";
+
+// ── Auth guard ──────────────────────────────────────────────
+if (!token) { window.location.href = "login.html"; }
+else if ((role || "").toUpperCase() !== "NURSE") {
+    showSessionOverlay("Unauthorized ❌", "You are not authorized here.");
+    setTimeout(() => { localStorage.clear(); window.location.href = "login.html"; }, 2500);
+}
+
+const isHead = (subRole || "").toUpperCase() === "HEAD_NURSE";
+
+// Per-patient flow tracking: { patientId: { notesViewed, vitalsEntered } }
+const flowState = {};
+
+function getFlow(pid) {
+    if (!flowState[pid]) flowState[pid] = { notesViewed: false, vitalsEntered: false };
+    return flowState[pid];
+}
+
+let allPatients    = [];
+let activeVitalsId = null;
+let activeDischargeId = null;
+let violationFired = false;
+
+// ── UI setup ────────────────────────────────────────────────
+document.getElementById("sidebarUsername").innerText = "👤 " + uname;
+document.getElementById("roleLabel").innerText = isHead ? "Head Nurse" : "Department Nurse";
+
+if (isHead) {
+    document.getElementById("headNurseNav").style.display     = "block";
+    document.getElementById("headBadge").style.display        = "inline-block";
+    document.getElementById("headNurseFlowBanner").style.display = "block";
+}
+
+// ── Clock ───────────────────────────────────────────────────
+setInterval(() => {
+    document.getElementById("clock").innerText =
+        new Date().toLocaleTimeString("en-IN");
+}, 1000);
+
+// ── Idle logout (15 min) ────────────────────────────────────
+let idleTimer;
+function resetIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        showSessionOverlay("Idle Timeout", "You were idle for 15 minutes.");
+        setTimeout(() => { localStorage.clear(); window.location.href = "login.html"; }, 2500);
+    }, 15 * 60 * 1000);
+}
+["mousemove","keydown","click","scroll","touchstart"].forEach(e => document.addEventListener(e, resetIdle));
+resetIdle();
+
+// ── Violation overlay ────────────────────────────────────────
+function triggerViolation(msg) {
+    if (violationFired) return;
+    violationFired = true;
+    document.getElementById("vMsg").innerText = msg || "Unauthorized action.";
+    document.getElementById("violationOverlay").classList.add("show");
+    let secs = 3;
+    const bar = document.getElementById("vBar");
+    const cd  = document.getElementById("vCountdown");
+    const t = setInterval(() => {
+        secs--;
+        bar.style.width = (secs / 3 * 100) + "%";
+        cd.innerText    = `Logging out in ${secs}...`;
+        if (secs <= 0) {
+            clearInterval(t);
+            localStorage.clear();
+            window.location.href = "login.html";
+        }
+    }, 1000);
+}
+
+function showSessionOverlay(title, msg) {
+    document.getElementById("soTitle").innerText = title;
+    document.getElementById("soMsg").innerText   = msg;
+    document.getElementById("sessionOverlay").classList.add("show");
+}
+
+// ── Central response handler ─────────────────────────────────
+async function handleResponse(res) {
+    if (res.status === 401) {
+        showSessionOverlay("Session Expired", "Redirecting to login...");
+        setTimeout(() => { localStorage.clear(); window.location.href = "login.html"; }, 2000);
+        return null;
+    }
+    if (res.status === 403) {
+        let data = null;
+        try { data = await res.clone().json(); } catch {}
+        if (data && data.action === "LOGOUT") {
+            triggerViolation(data.message || "Access violation detected.");
+            return null;
+        }
+        const txt = data?.message || await res.text().catch(() => "Access denied");
+        if (txt.toLowerCase().includes("shift")) {
+            showSessionOverlay("Shift Ended", "Your shift has ended. Logging out...");
+            setTimeout(() => { localStorage.clear(); window.location.href = "login.html"; }, 2500);
+        } else {
+            showToast(txt || "Access denied ❌", "error");
+        }
+        return null;
+    }
+    if (!res.ok) {
+        const txt = await res.text().catch(() => "Server error");
+        showToast(txt || "Error ❌", "error");
+        return null;
+    }
+    try { return await res.json(); }
+    catch { showToast("Invalid response ❌", "error"); return null; }
+}
+
+// Central fetch wrapper
+async function apiFetch(url, opts = {}) {
+    try {
+        return await fetch(url, {
+            ...opts,
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json",
+                ...(opts.headers || {})
+            }
+        });
+    } catch {
+        showToast("Cannot reach server ❌", "error");
+        return null;
+    }
+}
+
+// ── Page navigation ──────────────────────────────────────────
+const pageTitles = {
+    dashboard: "Dashboard",
+    patients:  "Patients",
+    vitals:    "Enter Vitals",
+    notes:     "Doctor Notes",
+    discharge: "Approve Discharge"
+};
+
+function showPage(name) {
+    // Dept nurse hard block — trigger violation on attempt
+    if (!isHead && (name === "notes" || name === "discharge")) {
+        triggerViolation(
+            name === "notes"
+                ? "⛔ Department Nurses cannot view Doctor Notes. This action has been logged."
+                : "⛔ Only the Head Nurse can approve patient discharge. This action has been logged."
+        );
+        return;
+    }
+
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".sidebar-nav a").forEach(a => a.classList.remove("active"));
+
+    document.getElementById("page-" + name).classList.add("active");
+    const nav = document.getElementById("nav-" + name);
+    if (nav) nav.classList.add("active");
+    document.getElementById("pageTitle").innerText = pageTitles[name] || name;
+
+    if (name === "patients")  renderPatientsPage();
+    if (name === "vitals")    renderVitalsPage();
+    if (name === "notes")     renderNotesPage();
+    if (name === "discharge") renderDischargePage();
+}
+
+// ── Load patients ────────────────────────────────────────────
+// =====================================================================
+// REPLACE the loadPatients() and renderPatients section in your
+// receptionist-dashboard.html <script> with this version.
+// Key change: fetches /reception/approved-for-discharge and marks
+// those patients with a green "Approved ✅" badge. Receptionist can
+// still discharge anyone — but now knows who Head Nurse approved.
+// =====================================================================
+
+async function loadPatients() {
+    const res = await apiFetch(`${BASE_URL}/nurse/patients`);
+    if (!res) return;
+    const data = await handleResponse(res);
+    if (!data) return;
+
+    allPatients = (data.patients || []).filter(p => p.status !== "DISCHARGED");
+    document.getElementById("cardPatients").innerText = allPatients.length;
+    document.getElementById("cardAlerts").innerText   = data.alerts         || 0;
+    document.getElementById("cardAbnormal").innerText = data.abnormalVitals || 0;
+    document.getElementById("cardShift").innerText    = data.shiftName      || "—";
+    document.getElementById("shiftPill").innerText    = data.shiftName      || "No shift";
+    document.getElementById("cardDept").innerText     = data.department     || "All";
+    renderDashPreview();
+}
+
+function renderPatientsTable() {
+    const tbody = document.getElementById("patientsTableBody");
+    if (!allPatients.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No admitted patients</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = allPatients.map(p => {
+        const approved = approvedIds.has(p.patientId);
+        return `<tr>
+            <td><strong>${p.patientName || "—"}</strong></td>
+            <td>${p.age || "—"} yrs</td>
+            <td>${p.gender || "—"}</td>
+            <td>${p.diseaseType || "—"}</td>
+            <td>${p.department || "—"}</td>
+            <td><span class="badge badge-teal">${p.status || "ADMITTED"}</span></td>
+            <td>
+                ${approved
+                    ? `<span style="display:inline-block;padding:3px 9px;border-radius:12px;
+                                   background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:700;">
+                           ✅ Head Nurse Approved
+                       </span>`
+                    : `<span style="display:inline-block;padding:3px 9px;border-radius:12px;
+                                   background:#f0f0f0;color:#999;font-size:11px;font-weight:600;">
+                           Pending
+                       </span>`
+                }
+            </td>
+            <td>
+                <button class="btn btn-sm btn-red" onclick="checkoutPatient(${p.patientId})">
+                    ${approved ? "✅ Discharge" : "Discharge"}
+                </button>
+            </td>
+        </tr>`;
+    }).join("");
+}
+
+// =====================================================================
+// Also update the patients table header in your HTML to add the
+// "Discharge Approval" column — change:
+//
+//   <th>Patient Name</th><th>Age</th><th>Gender</th>
+//   <th>Disease Type</th><th>Department</th><th>Status</th><th>Actions</th>
+//
+// to:
+//
+//   <th>Patient Name</th><th>Age</th><th>Gender</th>
+//   <th>Disease Type</th><th>Department</th><th>Status</th>
+//   <th>Discharge Approval</th><th>Actions</th>
+// =====================================================================
+// ── Dashboard preview ────────────────────────────────────────
+function renderDashPreview() {
+    const preview = allPatients.slice(0, 5);
+    const wrap = document.getElementById("dashPreview");
+    if (!preview.length) { wrap.innerHTML = "<div class='empty-state'>No active patients</div>"; return; }
+    wrap.innerHTML = buildPatientsTable(preview, false);
+}
+
+// ── Patients page ────────────────────────────────────────────
+function renderPatientsPage() {
+    const wrap = document.getElementById("patientTableWrap");
+    if (!allPatients.length) { wrap.innerHTML = "<div class='empty-state'>No patients found</div>"; return; }
+    wrap.innerHTML = buildPatientsTable(allPatients, true);
+}
+
+function buildPatientsTable(patients, withSearch) {
+    return `<table>
+        <thead><tr>
+            <th>Name</th><th>Dept</th><th>Age</th><th>Gender</th><th>Disease</th><th>Status</th>
+            ${isHead ? "<th>Flow</th>" : ""}
+            <th>Actions</th>
+        </tr></thead>
+        <tbody id="${withSearch ? 'patientTbody' : 'dashTbody'}">
+        ${patients.map(p => {
+            const f = getFlow(p.patientId);
+            const flowHtml = isHead ? `<td>
+                <span class="flow-step ${f.notesViewed ? 'done' : 'pending'}">Notes</span>
+                <span class="flow-step ${f.vitalsEntered ? 'done' : 'pending'}">Vitals</span>
+            </td>` : "";
+            return `<tr>
+                <td><strong>${p.patientName || "—"}</strong></td>
+                <td>${p.department || "—"}</td>
+                <td>${p.age || "—"}</td>
+                <td>${p.gender || "—"}</td>
+                <td>${p.diseaseType || "—"}</td>
+                <td><span class="badge badge-teal">${p.status || "ADMITTED"}</span></td>
+                ${flowHtml}
+                <td>
+                    <button class="btn btn-teal btn-sm" onclick="openVitalsModal(${p.patientId},'${esc(p.patientName)}')">💓 Vitals</button>
+                    ${isHead ? `<button class="btn btn-outline btn-sm" onclick="openNotesModal(${p.patientId},'${esc(p.patientName)}')">📋 Notes</button>` : ""}
+                </td>
+            </tr>`;
+        }).join("")}
+        </tbody>
+    </table>`;
+}
+
+// ── Vitals page ──────────────────────────────────────────────
+function renderVitalsPage() {
+    const wrap = document.getElementById("vitalsTableWrap");
+    if (!allPatients.length) { wrap.innerHTML = "<div class='empty-state'>No patients</div>"; return; }
+    wrap.innerHTML = `<table>
+        <thead><tr><th>Name</th><th>Department</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="vitalsTbody">
+        ${allPatients.map(p => `<tr>
+            <td><strong>${p.patientName || "—"}</strong></td>
+            <td>${p.department || "—"}</td>
+            <td><span class="badge badge-teal">${p.status || "ADMITTED"}</span></td>
+            <td><button class="btn btn-teal btn-sm" onclick="openVitalsModal(${p.patientId},'${esc(p.patientName)}')">💓 Enter Vitals</button></td>
+        </tr>`).join("")}
+        </tbody>
+    </table>`;
+}
+
+// ── Notes page (Head Nurse only) ─────────────────────────────
+function renderNotesPage() {
+    const wrap = document.getElementById("notesTableWrap");
+    if (!allPatients.length) { wrap.innerHTML = "<div class='empty-state'>No patients</div>"; return; }
+    wrap.innerHTML = `<table style="margin-top:12px;">
+        <thead><tr><th>Name</th><th>Department</th><th>Status</th><th>Notes Viewed</th><th>Action</th></tr></thead>
+        <tbody>
+        ${allPatients.map(p => {
+            const viewed = getFlow(p.patientId).notesViewed;
+            return `<tr>
+                <td><strong>${p.patientName || "—"}</strong></td>
+                <td>${p.department || "—"}</td>
+                <td><span class="badge badge-teal">${p.status || "ADMITTED"}</span></td>
+                <td>${viewed ? '<span class="badge badge-green">✅ Viewed</span>' : '<span class="badge badge-grey">Not yet</span>'}</td>
+                <td><button class="btn btn-outline btn-sm" onclick="openNotesModal(${p.patientId},'${esc(p.patientName)}')">📋 View Notes</button></td>
+            </tr>`;
+        }).join("")}
+        </tbody>
+    </table>`;
+}
+
+// ── Discharge page (Head Nurse only) ─────────────────────────
+function renderDischargePage() {
+    const wrap = document.getElementById("dischargeTableWrap");
+    if (!allPatients.length) { wrap.innerHTML = "<div class='empty-state'>No patients</div>"; return; }
+    wrap.innerHTML = `<table style="margin-top:12px;">
+        <thead><tr><th>Name</th><th>Dept</th><th>Notes</th><th>Vitals</th><th>Action</th></tr></thead>
+        <tbody>
+        ${allPatients.map(p => {
+            const f = getFlow(p.patientId);
+            const ready = f.notesViewed && f.vitalsEntered;
+            let btnHtml;
+            if (ready) {
+                btnHtml = `<button class="btn btn-red btn-sm" onclick="openDischargeModal(${p.patientId},'${esc(p.patientName)}')">🏁 Approve</button>`;
+            } else if (!f.notesViewed) {
+                btnHtml = `<button class="btn btn-sm" disabled style="opacity:0.35;cursor:not-allowed;" title="View notes first">🏁 Locked</button>`;
+            } else {
+                btnHtml = `<button class="btn btn-sm" disabled style="opacity:0.35;cursor:not-allowed;" title="Enter vitals first">🏁 Locked</button>`;
+            }
+            return `<tr>
+                <td><strong>${p.patientName || "—"}</strong></td>
+                <td>${p.department || "—"}</td>
+                <td>${f.notesViewed  ? '<span class="badge badge-green">✅</span>' : '<span class="badge badge-grey">❌</span>'}</td>
+                <td>${f.vitalsEntered ? '<span class="badge badge-green">✅</span>' : '<span class="badge badge-grey">❌</span>'}</td>
+                <td>${btnHtml}</td>
+            </tr>`;
+        }).join("")}
+        </tbody>
+    </table>`;
+}
+
+// ── Vitals modal ─────────────────────────────────────────────
+function openVitalsModal(id, name) {
+    activeVitalsId = id;
+    document.getElementById("vitalsPatientName").innerText = name;
+    ["inputBp","inputTemp","inputPulse"].forEach(i => document.getElementById(i).value = "");
+    document.getElementById("vitalsModal").classList.add("open");
+}
+
+async function submitVitals() {
+    const bp    = document.getElementById("inputBp").value.trim();
+    const temp  = parseFloat(document.getElementById("inputTemp").value);
+    const pulse = parseInt(document.getElementById("inputPulse").value);
+
+    if (!bp)             { showToast("Blood pressure required ❌", "error"); return; }
+    if (!temp || temp<=0){ showToast("Temperature required ❌", "error"); return; }
+    if (!pulse|| pulse<=0){ showToast("Pulse required ❌", "error"); return; }
+
+    const res = await apiFetch(`${BASE_URL}/nurse/vitals/${activeVitalsId}`, {
+        method: "POST",
+        body: JSON.stringify({ bp, temperature: temp, pulse })
+    });
+    if (!res) return;
+    const data = await handleResponse(res);
+    if (!data) return;
+
+    // Mark vitals entered for this patient (front-end flow tracking)
+    getFlow(activeVitalsId).vitalsEntered = true;
+
+    closeModal("vitalsModal");
+    showToast(data.warning ? "⚠️ " + data.warning : "Vitals saved ✅");
+
+    // Refresh discharge page if open
+    if (document.getElementById("page-discharge").classList.contains("active")) renderDischargePage();
+    if (document.getElementById("page-patients").classList.contains("active"))  renderPatientsPage();
+}
+
+// ── Notes modal ──────────────────────────────────────────────
+async function openNotesModal(id, name) {
+    if (!isHead) {
+        triggerViolation("⛔ Department Nurses cannot view Doctor Notes. This action has been logged.");
+        return;
+    }
+    document.getElementById("notesPatientName").innerText = name;
+    document.getElementById("notesBody").innerHTML = "<div class='loading'>Loading...</div>";
+    document.getElementById("notesModal").classList.add("open");
+
+    const res = await apiFetch(`${BASE_URL}/nurse/doctor-notes/${id}`);
+    if (!res) { closeModal("notesModal"); return; }
+    const data = await handleResponse(res);
+    if (!data) { closeModal("notesModal"); return; }
+
+    // Mark notes viewed — unlocks vitals entry requirement from backend side too
+    getFlow(id).notesViewed = true;
+
+    document.getElementById("notesBody").innerHTML = `
+        <div class="info-grid" style="grid-template-columns:1fr 1fr; margin-bottom:16px;">
+            <div class="info-item">
+                <div class="info-label">Diagnosis</div>
+                <div class="info-value">${data.diagnosis || "—"}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Treatment</div>
+                <div class="info-value">${data.treatment || "—"}</div>
+            </div>
+        </div>
+        <div style="padding:10px;background:${data.doctorSigned ? '#e8f5e9' : '#fff8e1'};
+                    border-radius:8px;font-size:13px;font-weight:600;
+                    color:${data.doctorSigned ? '#2e7d32' : '#795548'};margin-bottom:16px;">
+            ${data.doctorSigned ? "✅ Doctor has signed this report" : "⚠️ Doctor has NOT signed yet — discharge may fail"}
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('notesModal')">Close</button>
+            <button class="btn btn-teal" onclick="closeModal('notesModal'); showPage('vitals');">→ Enter Vitals</button>
+        </div>
+    `;
+
+    // Refresh notes/discharge pages if open
+    if (document.getElementById("page-notes").classList.contains("active"))    renderNotesPage();
+    if (document.getElementById("page-discharge").classList.contains("active")) renderDischargePage();
+    if (document.getElementById("page-patients").classList.contains("active"))  renderPatientsPage();
+}
+
+// ── Discharge modal ──────────────────────────────────────────
+function openDischargeModal(id, name) {
+    if (!isHead) {
+        triggerViolation("⛔ Only Head Nurse can approve patient discharge. This action has been logged.");
+        return;
+    }
+    const f = getFlow(id);
+    if (!f.notesViewed) {
+        showToast("⚠️ View doctor notes first (Step 1 of 3)", "error"); return;
+    }
+    if (!f.vitalsEntered) {
+        showToast("⚠️ Enter vitals first (Step 2 of 3)", "error"); return;
+    }
+    activeDischargeId = id;
+    document.getElementById("dischargePatientName").innerText = name;
+    document.getElementById("dischargeModal").classList.add("open");
+}
+
+async function confirmDischarge() {
+    const res = await apiFetch(`${BASE_URL}/nurse/approve-report/${activeDischargeId}`, { method: "POST" });
+    if (!res) return;
+
+    if (!res.ok) {
+        const txt = await res.text();
+        showToast(txt || "Discharge failed ❌", "error");
+        closeModal("dischargeModal");
+        return;
+    }
+
+    closeModal("dischargeModal");
+    delete flowState[activeDischargeId];
+    showToast("✅ Patient approved for discharge — Receptionist will process checkout");
+    await loadPatients();
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+
+function filterTable(tbodyId, inputId) {
+    const q = document.getElementById(inputId).value.toLowerCase();
+    const rows = document.querySelectorAll(`#${tbodyId} tr`);
+    rows.forEach(r => r.style.display = r.innerText.toLowerCase().includes(q) ? "" : "none");
+}
+
+function esc(s) { return (s || "").replace(/'/g, "\\'"); }
+
+function showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.innerText = msg;
+    t.className = `toast show ${type}`;
+    setTimeout(() => t.className = "toast", 3500);
+}
+
+function doLogout() { localStorage.clear(); window.location.href = "login.html"; }
+
+// ── Init ─────────────────────────────────────────────────────
+loadPatients();
+</script>
+</body>
+</html>

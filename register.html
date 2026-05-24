@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MedAccess - Register</title>
+    <link rel="stylesheet" href="register.css">
+</head>
+<body>
+
+<div class="container">
+
+    <div class="left-panel">
+        <img src="media/loginImg.jpeg" alt="Healthcare Team">
+    </div>
+
+    <div class="right-panel">
+
+        <div class="logo">
+            <img src="media/icon.png" height="35px">
+            <span>MedAccess</span>
+        </div>
+
+        <h2>Create Account</h2>
+        <p>Register to access the healthcare system</p>
+
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Username" required>
+        </div>
+
+        <div class="input-group">
+            <input type="email" id="emailId" placeholder="Email ID" required>
+        </div>
+
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Password (min 6 chars)" required minlength="6">
+        </div>
+
+        <!-- ROLE: Only Doctor and Nurse allowed -->
+        <div class="input-group">
+            <select id="role" required onchange="onRoleChange()">
+                <option value="">-- Select Role --</option>
+                <option value="DOCTOR">Doctor</option>
+                <option value="NURSE">Nurse</option>
+            </select>
+        </div>
+
+        <!-- SUB ROLE (Nurse only) -->
+        <div class="input-group" id="subRoleDiv" style="display:none;">
+            <select id="subRole">
+                <option value="">-- Select Nurse Type --</option>
+                <option value="HEAD_NURSE">Head Nurse</option>
+                <option value="DEPARTMENT_NURSE">Department Nurse</option>
+            </select>
+        </div>
+
+        <!-- DEPARTMENT -->
+        <div class="input-group">
+            <select id="department" required>
+                <option value="">-- Select Department --</option>
+                <option value="CARDIOLOGY">Cardiology</option>
+                <option value="NEUROLOGY">Neurology</option>
+                <option value="ORTHOPEDICS">Orthopedics</option>
+                <option value="PEDIATRICS">Pediatrics</option>
+                <option value="GENERAL">General</option>
+            </select>
+        </div>
+
+        <button onclick="register()">Register</button>
+
+        <div id="reg-message" style="margin-top:12px;font-size:13px;"></div>
+
+        <div class="login-link">
+            Already have an account? <a href="login.html">Login</a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+
+const API_URL = "http://localhost:8080";
+
+function onRoleChange() {
+    const role       = document.getElementById("role").value;
+    const subRoleDiv = document.getElementById("subRoleDiv");
+    const subRole    = document.getElementById("subRole");
+
+    if (role === "NURSE") {
+        subRoleDiv.style.display = "block";
+        subRole.required = true;
+    } else {
+        subRoleDiv.style.display = "none";
+        subRole.value    = "";
+        subRole.required = false;
+    }
+}
+
+async function register() {
+
+    const username   = document.getElementById("username").value.trim();
+    const emailId    = document.getElementById("emailId").value.trim();
+    const password   = document.getElementById("password").value.trim();
+    const role       = document.getElementById("role").value;
+    const department = document.getElementById("department").value;
+    const subRole    = document.getElementById("subRole").value;
+
+    // Validation
+    if (!username || !emailId || !password || !role) {
+        showMsg("⚠️ Please fill all required fields", "error"); 
+        return;
+    }
+    if (username.length < 3) {
+        showMsg("⚠️ Username must be at least 3 characters", "error"); 
+        return;
+    }
+    if (password.length < 6) {
+        showMsg("⚠️ Password must be at least 6 characters", "error"); 
+        return;
+    }
+    if (!emailId.includes("@")) {
+        showMsg("⚠️ Please enter a valid email", "error"); 
+        return;
+    }
+    if (!department) {
+        showMsg("⚠️ Please select a department", "error"); 
+        return;
+    }
+    if (role === "NURSE" && !subRole) {
+        showMsg("⚠️ Please select Nurse Type", "error"); 
+        return;
+    }
+
+    const data = {
+        username,
+        emailId,
+        password,
+        role,
+        department,
+        subRole: role === "NURSE" ? subRole : null
+    };
+
+    try {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showMsg("✅ Registration successful! Waiting for admin approval. Redirecting to login...", "success");
+            setTimeout(() => window.location.href = "login.html", 2500);
+        } else {
+            showMsg("❌ " + (result.error || "Registration failed"), "error");
+        }
+
+    } catch (error) {
+        console.error(error);
+        showMsg("❌ Cannot reach server. Is Spring Boot running?", "error");
+    }
+}
+
+function showMsg(msg, type) {
+    const el = document.getElementById("reg-message");
+    el.innerText    = msg;
+    
+    if (type === "error") {
+        el.style.color = "#e53935";
+        el.style.background = "#ffebee";
+        el.style.padding = "10px";
+        el.style.borderRadius = "6px";
+        el.style.borderLeft = "4px solid #e53935";
+    } else if (type === "success") {
+        el.style.color = "#2e7d32";
+        el.style.background = "#e8f5e9";
+        el.style.padding = "10px";
+        el.style.borderRadius = "6px";
+        el.style.borderLeft = "4px solid #2e7d32";
+    }
+}
+
+</script>
+
+</body>
+</html>

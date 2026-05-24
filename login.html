@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MedAccess - Login</title>
+<link rel="stylesheet" href="login.css"/>
+<style>
+#message-box {
+    display: none;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    background: #ffe2e2;
+    color: #b00020;
+    font-weight: 600;
+    text-align: center;
+    white-space: pre-line;
+}
+#status-box {
+    display: none;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    background: #e3f2fd;
+    color: #1565c0;
+    font-weight: 600;
+    text-align: center;
+    font-size: 13px;
+}
+.register-link {
+    margin-top: 15px;
+    text-align: center;
+    font-size: 14px;
+}
+.register-link a {
+    color: #0e7c86;
+    text-decoration: underline;
+    font-weight: 600;
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="left-panel">
+        <img src="media/loginImg.jpeg" alt="Healthcare Team">
+    </div>
+    <div class="right-panel">
+        <h2>Welcome</h2>
+        <p>Please enter your credentials to continue</p>
+
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Enter Username"
+                   onkeydown="if(event.key==='Enter') login()"/>
+        </div>
+
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Enter Password"
+                   onkeydown="if(event.key==='Enter') login()"/>
+        </div>
+
+        <button onclick="login()" id="loginBtn">LOGIN</button>
+
+        <div id="status-box"></div>
+        <div id="message-box"></div>
+
+        <div class="register-link">
+            Don't have an account? <a href="register.html">Register Now</a>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_URL = "http://localhost:8080";
+
+function showStatus(msg) {
+    const s = document.getElementById("status-box");
+    s.style.display = "block";
+    s.innerText = msg;
+}
+
+function hideStatus() {
+    document.getElementById("status-box").style.display = "none";
+}
+
+function showError(msg) {
+    const m = document.getElementById("message-box");
+    m.style.display = "block";
+    m.innerHTML = msg;
+    hideStatus();
+}
+
+function hideError() {
+    document.getElementById("message-box").style.display = "none";
+}
+
+// ── Get GPS location with timeout ────────────────────────────
+function getLocation() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+            resolve({ latitude: 0, longitude: 0, error: "Geolocation not supported" });
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, error: null }),
+            err => {
+                let msg = "Location access denied";
+                if (err.code === 1) msg = "Location permission denied — please allow location access";
+                if (err.code === 2) msg = "Location unavailable";
+                if (err.code === 3) msg = "Location request timed out";
+                resolve({ latitude: 0, longitude: 0, error: msg });
+            },
+            { timeout: 8000, enableHighAccuracy: true }
+        );
+    });
+}
+
+async function login() {
+    hideError();
+    hideStatus();
+
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    if (!username || !password) {
+        showError("Enter username and password ❌");
+        return;
+    }
+
+    const btn = document.getElementById("loginBtn");
+    btn.disabled = true;
+    btn.innerText = "Checking...";
+
+    // ── STEP 1: Get location silently — no alert, no block ───
+    showStatus("📍 Getting your location...");
+    const { latitude, longitude } = await getLocation();
+    // Always proceed — server decides if location is valid
+
+    // ── STEP 2: Send to server ────────────────────────────────
+    showStatus("🔐 Verifying credentials...");
+
+    try {
+        const res = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, latitude, longitude })
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+            showStatus("✅ Login successful! Redirecting...");
+            localStorage.clear();
+            localStorage.setItem("token",    result.token);
+            localStorage.setItem("username", result.username || "");
+            localStorage.setItem("subRole",  (result.subRole || "").toUpperCase());
+
+            let role = (result.role || "").toUpperCase();
+            if (role.startsWith("ROLE_")) role = role.replace("ROLE_", "");
+            localStorage.setItem("role", role);
+
+            const nurseRoles = ["NURSE", "HEAD_NURSE", "DEPT_NURSE", "DEPARTMENT_NURSE"];
+            setTimeout(() => {
+                if      (role === "ADMIN")              window.location.href = "admin-dashboard.html";
+                else if (role === "DOCTOR")             window.location.href = "doctor-dashboard.html";
+                else if (nurseRoles.includes(role))     window.location.href = "nurse-dashboard.html";
+                else if (role === "RECEPTIONIST")       window.location.href = "receptionist-dashboard.html";
+                else { showError("Unknown role: " + role); }
+            }, 800);
+
+        } else {
+            // All errors shown in UI — no alerts
+            const errMsg = result.error || "Login failed ❌";
+            if      (errMsg.toLowerCase().includes("outside") || errMsg.toLowerCase().includes("campus"))
+                showError("🏥 Access Denied: You are outside the hospital campus.");
+            else if (errMsg.toLowerCase().includes("location"))
+                showError("📍 Location access required. Please allow location in your browser.");
+            else if (errMsg.toLowerCase().includes("shift"))
+                showError("🕐 " + errMsg);
+            else if (errMsg.toLowerCase().includes("network"))
+                showError("🌐 " + errMsg);
+            else if (errMsg.toLowerCase().includes("approval"))
+                showError("⏳ " + errMsg);
+            else
+                showError(errMsg);
+        }
+
+    } catch (err) {
+        showError("Server not reachable ❌");
+    }
+
+    btn.disabled = false;
+    btn.innerText = "LOGIN";
+}
+</script>
+</body>
+</html>

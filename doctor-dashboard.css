@@ -1,0 +1,96 @@
+body{
+    margin:0;
+    font-family:"Segoe UI",sans-serif;
+    background:#eaf7f7;
+}
+
+/* HEADER */
+.header{
+    background:#1bb3b3;
+    color:white;
+    padding:15px;
+    font-size:22px;
+    text-align:center;
+    font-weight:bold;
+}
+
+/* LAYOUT */
+.container{
+    display:flex;
+    height:calc(100vh - 60px);
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:220px;
+    background:#1bb3b3;
+    color:white;
+    padding:20px;
+}
+
+.sidebar ul{
+    list-style:none;
+    padding:0;
+}
+
+.sidebar li{
+    padding:12px;
+    margin-bottom:10px;
+    cursor:pointer;
+    border-radius:6px;
+}
+
+.sidebar li:hover{
+    background:rgba(255,255,255,0.2);
+}
+
+.sidebar .active{
+    background:rgba(0,0,0,0.2);
+}
+
+/* CONTENT */
+.content{
+    flex:1;
+    padding:30px;
+    background:#f4f9f9;
+}
+
+/* TABLE */
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:0 5px 15px rgba(0,0,0,0.1);
+}
+
+th{
+    background:#1bb3b3;
+    color:white;
+    padding:12px;
+}
+
+td{
+    padding:12px;
+    border-bottom:1px solid #ddd;
+}
+
+tr:hover{
+    background:#f1f1f1;
+}
+
+/* BUTTONS */
+button{
+    padding:6px 10px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+    background:#1bb3b3;
+    color:white;
+    margin-right:5px;
+}
+
+button:hover{
+    opacity:0.8;
+}

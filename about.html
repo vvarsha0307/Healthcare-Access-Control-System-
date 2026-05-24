@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>About Us | MedAccess</title>
+
+<link rel="stylesheet" href="about.css">
+<link rel="icon" href="../../media/icon.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<header class="navbar">
+
+<div class="logo">
+<img src="../../media/icon.png" height="30">
+<span class="logo-text">MedAccess</span>
+</div>
+
+<nav class="nav-links">
+<a href="index.html">Home</a>
+<a href="doctor.html">Doctors</a>
+<a href="about.html" class="active">About</a>
+<a href="contact.html">Contact</a>
+</nav>
+
+<div class="auth-buttons">
+<a href="register.html" class="signup-btn">Signup</a>
+<a href="login.html" class="login-btn">Login</a>
+</div>
+
+</header>
+
+<!-- ABOUT HERO -->
+<section class="about-hero">
+
+<div class="about-content">
+
+<h1>
+About Our <br> Healthcare System
+</h1>
+
+<span class="hero-line"></span>
+
+<p class="hero-text">
+This healthcare management system is designed exclusively for doctors,
+nurses, and administrative staff to manage clinical operations securely
+and efficiently. It enables controlled access to medical data,
+streamlined workflows, and reliable internal communication.
+</p>
+
+</div>
+
+<div class="about-img">
+<img src="../../media/abt_img-removebg-preview.png">
+</div>
+
+</section>
+
+
+<!-- MISSION VISION -->
+<section class="mv-section">
+
+<p class="mv-tag">OUR MISSION & VISION</p>
+
+<h1 class="mv-title">
+Driving Healthcare Operations Through Innovation
+</h1>
+
+<p class="mv-subtitle">
+We aim to modernize internal healthcare processes by combining
+scalable technology, role-based access, and structured system
+management for medical organizations.
+</p>
+
+
+<div class="mv-buttons">
+
+<button class="mv-btn active" onclick="showContent(event,'mission')">
+Our Mission
+</button>
+
+<button class="mv-btn" onclick="showContent(event,'vision')">
+Our Vision
+</button>
+
+<button class="mv-btn" onclick="showContent(event,'values')">
+Core Values
+</button>
+
+</div>
+
+
+<div class="mv-content">
+
+<div class="mv-box active" id="mission">
+
+<h2>Our Mission</h2>
+
+<p>
+Our mission is to build a secure, role-based healthcare management
+system that empowers doctors, nurses, and administrators to perform
+their responsibilities efficiently and confidently.
+
+By integrating modern web technologies with healthcare operations,
+we aim to reduce manual workloads, improve data accuracy, and support
+seamless coordination across medical teams.
+
+Our platform is designed to adapt to evolving institutional needs
+while maintaining the highest standards of confidentiality,
+integrity, and system reliability.
+</p>
+
+<hr>
+
+</div>
+
+
+<div class="mv-box" id="vision">
+
+<h2>Our Vision</h2>
+
+<p>
+Our vision is to become a trusted digital foundation for internal
+healthcare operations, enabling medical institutions to manage
+their workflows through a single secure platform.
+
+We envision a system where healthcare professionals can rely on
+real-time access to accurate information without compromising
+security.
+
+We strive to continuously enhance system performance, usability,
+and security so that medical organizations can confidently adopt
+digital solutions.
+</p>
+
+<hr>
+
+</div>
+
+
+<div class="mv-box" id="values">
+
+<h2>Core Values</h2>
+
+<p>
+Our core values are centered on security, integrity,
+accountability, and efficiency.
+
+We are committed to safeguarding sensitive healthcare data
+through strict role-based access control and reliable
+system architecture.
+
+We prioritize accuracy in data management, transparency in
+operations, and continuous improvement to ensure that
+healthcare professionals can depend on our platform.
+</p>
+
+<hr>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- FOOTER -->
+<footer class="mini-footer">
+
+<div class="mini-footer-container">
+
+<p>© 2026 MedAccess. All Rights Reserved.</p>
+
+<div class="mini-links">
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+<a href="contact.html">Contact</a>
+</div>
+
+</div>
+
+</footer>
+
+
+<script>
+
+function showContent(event,id){
+
+document.querySelectorAll(".mv-box").forEach(box=>{
+box.classList.remove("active");
+});
+
+document.querySelectorAll(".mv-btn").forEach(btn=>{
+btn.classList.remove("active");
+});
+
+document.getElementById(id).classList.add("active");
+event.target.classList.add("active");
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,281 @@
+/* ================= GLOBAL ================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    background: #fff;
+    color: #333;
+    padding-top: 90px; /* space for fixed navbar */
+    line-height: 1.6;
+}
+
+/* ================= NAVBAR ================= */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 60px;
+    background: #f4f8f9;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: #0e7c86;
+}
+
+.logo img {
+    margin-right: 8px;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #555;
+    font-weight: 500;
+    position: relative;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    color: #0e7c86;
+}
+
+.nav-links a.active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -6px;
+    width: 100%;
+    height: 2px;
+    background: #0e7c86;
+}
+
+.auth-buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.signup-btn {
+    border: 2px solid #0e7c86;
+    color: #0e7c86;
+    padding: 9px 20px;
+    border-radius: 20px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: 0.3s;
+}
+
+.signup-btn:hover {
+    background: #0e7c86;
+    color: white;
+}
+
+.login-btn {
+    background: #0e7c86;
+    color: white;
+    padding: 10px 22px;
+    border-radius: 20px;
+    text-decoration: none;
+    transition: 0.3s;
+}
+
+.login-btn:hover {
+    background: #06202B;
+    box-shadow: 0 0 10px #0e7c86;
+}
+
+/* ================= HERO ================= */
+.doctors-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 80px 80px;
+    gap: 50px;
+    flex-wrap: wrap;
+}
+
+.doctors-content {
+    max-width: 600px;
+}
+
+.doctors-content h1 {
+    font-size: 56px;
+    margin-bottom: 20px;
+}
+
+.hero-line {
+    display: block;
+    width: 70px;
+    height: 4px;
+    background: #0e7c86;
+    margin-bottom: 25px;
+}
+
+.hero-text {
+    font-size: 16px;
+    line-height: 1.7;
+    color: #444;
+}
+
+.doctImg img {
+    width: 500px;
+    border-radius: 12px;
+}
+
+/* ================= TEAM / DOCTORS GRID ================= */
+.team-header {
+    text-align: center;
+    padding: 60px 30px 30px;
+}
+
+.team-tag {
+    color: #0e7c86;
+    font-weight: 600;
+    letter-spacing: 2px;
+}
+
+.team-title {
+    font-size: 36px;
+    margin: 10px 0;
+}
+
+.team-line {
+    display: block;
+    width: 60px;
+    height: 4px;
+    background: #0e7c86;
+    margin: 10px auto 20px;
+}
+
+.team-desc {
+    font-size: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.doctors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 30px;
+    padding: 30px;
+}
+
+.doctor-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.doctor-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+}
+
+.doctor-card img {
+    width: 100%;
+    height: 250px;
+    object-fit: cover;
+}
+
+.doctor-info {
+    padding: 20px;
+    text-align: center;
+}
+
+.doctor-info h3 {
+    margin: 0;
+    font-size: 20px;
+    color: #06202B;
+}
+
+.specialty {
+    font-size: 14px;
+    color: #777;
+    margin: 5px 0;
+}
+
+.divider {
+    width: 40px;
+    height: 3px;
+    background: #0e7c86;
+    margin: 10px auto;
+    border-radius: 2px;
+}
+
+.email {
+    font-size: 14px;
+    color: #333;
+}
+
+/* ================= FOOTER ================= */
+.mini-footer {
+    background: #0e7c86;
+    color: white;
+    padding: 18px 40px;
+}
+
+.mini-footer-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: auto;
+}
+
+.mini-links a {
+    color: #ccc;
+    margin-left: 20px;
+    text-decoration: none;
+    transition: 0.3s;
+}
+
+.mini-links a:hover {
+    color: white;
+}
+
+/* ================= RESPONSIVE ================= */
+@media(max-width:900px) {
+    .doctors-hero {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .doctImg img {
+        width: 350px;
+    }
+
+    .navbar {
+        padding: 15px 25px;
+    }
+}
+
+@media(max-width:576px) {
+    .doctors-grid {
+        grid-template-columns: 1fr;
+        padding: 20px;
+    }
+
+    .doctors-hero {
+        padding: 40px 20px;
+    }
+}
